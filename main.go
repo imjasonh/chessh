@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log"
 	"slices"
@@ -41,7 +42,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.selected = nil
 			m.validMoves = make([]Position, 0)
 		}
-		
+
 		switch msg.String() {
 		case "q":
 			return m, tea.Quit
@@ -287,7 +288,15 @@ func (m model) getPieceName(piece Piece) string {
 }
 
 func main() {
-	if _, err := tea.NewProgram(initialModel()).Run(); err != nil {
-		log.Fatal(err)
+	var port = flag.Int("port", 0, "run as SSH server")
+	flag.Parse()
+
+	if *port != 0 {
+		runSSHServer(*port)
+	} else {
+		// Run locally
+		if _, err := tea.NewProgram(initialModel()).Run(); err != nil {
+			log.Fatal(err)
+		}
 	}
 }
