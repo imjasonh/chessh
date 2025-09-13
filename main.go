@@ -1,21 +1,39 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log"
+	"os"
+	"os/signal"
 	"slices"
 	"strings"
+	"syscall"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/keygen"
+	"github.com/charmbracelet/ssh"
+	"github.com/charmbracelet/wish"
+	"github.com/charmbracelet/wish/bubbletea"
+	"github.com/charmbracelet/wish/logging"
 )
 
 type model struct {
+	// Game state
 	game       *Game
 	cursorRow  int
 	cursorCol  int
 	selected   *Position
 	validMoves []Position
+
+	// Multiplayer state
+	player      *Player
+	opponent    *Player
+	gameSession *GameSession
+	gameState   string // "waiting", "playing", "finished", "opponent_disconnected"
+	isMyTurn    bool
 }
 
 func initialModel() model {
@@ -25,64 +43,206 @@ func initialModel() model {
 		cursorCol:  0,
 		selected:   nil,
 		validMoves: make([]Position, 0),
+		gameState:  "waiting",
+		isMyTurn:   false,
 	}
 }
 
+func initialModelWithPlayer(player *Player) model {
+	m := initialModel()
+	m.player = player
+	m.gameState = "waiting"
+	return m
+}
+
 func (m model) Init() tea.Cmd {
+	if m.player != nil && m.player.UpdateChan != nil {
+		return m.listenForUpdates()
+	}
 	return nil
+}
+
+func (m model) listenForUpdates() tea.Cmd {
+	return func() tea.Msg {
+		if m.player != nil && m.player.UpdateChan != nil {
+			return <-m.player.UpdateChan
+		}
+		return nil
+	}
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
+		// Global keys
 		switch msg.Type {
 		case tea.KeyCtrlC:
 			return m, tea.Quit
 		case tea.KeyEscape:
-			m.selected = nil
-			m.validMoves = make([]Position, 0)
+			if m.gameState == "playing" && m.isMyTurn {
+				m.selected = nil
+				m.validMoves = make([]Position, 0)
+				// Broadcast deselection to opponent
+				if m.gameSession != nil {
+					GetGameManager().BroadcastUpdate(m.player.ID, GameUpdate{
+						Type: "deselect",
+						Data: nil,
+					})
+				}
+			}
 		}
 
 		switch msg.String() {
 		case "q":
 			return m, tea.Quit
-		case "up", "k":
-			if m.cursorRow < 7 {
-				m.cursorRow++
-			}
-		case "down", "j":
-			if m.cursorRow > 0 {
-				m.cursorRow--
-			}
-		case "left", "h":
-			if m.cursorCol > 0 {
-				m.cursorCol--
-			}
-		case "right", "l":
-			if m.cursorCol < 7 {
-				m.cursorCol++
-			}
-		case "enter", " ":
-			currentPos := Position{m.cursorRow, m.cursorCol}
+		}
 
-			if m.selected == nil {
-				piece := m.game.Board.At(currentPos)
-				if piece.Type != Empty && piece.Color == m.game.CurrentTurn {
-					m.selected = &currentPos
-					m.validMoves = m.getValidMoves(currentPos)
+		// Only handle game input if it's the player's turn and game is active
+		if m.gameState == "playing" && m.isMyTurn {
+			switch msg.String() {
+			case "up", "k":
+				if m.cursorRow < 7 {
+					m.cursorRow++
+					m.broadcastCursorUpdate()
 				}
-			} else {
-				if *m.selected == currentPos {
-					m.selected = nil
-					m.validMoves = make([]Position, 0)
-				} else if m.game.MakeMove(*m.selected, currentPos) {
-					m.selected = nil
-					m.validMoves = make([]Position, 0)
+			case "down", "j":
+				if m.cursorRow > 0 {
+					m.cursorRow--
+					m.broadcastCursorUpdate()
+				}
+			case "left", "h":
+				if m.cursorCol > 0 {
+					m.cursorCol--
+					m.broadcastCursorUpdate()
+				}
+			case "right", "l":
+				if m.cursorCol < 7 {
+					m.cursorCol++
+					m.broadcastCursorUpdate()
+				}
+			case "enter", " ":
+				currentPos := Position{m.cursorRow, m.cursorCol}
+
+				if m.selected == nil {
+					piece := m.game.Board.At(currentPos)
+					if piece.Type != Empty && piece.Color == m.player.Color {
+						m.selected = &currentPos
+						m.validMoves = m.getValidMoves(currentPos)
+						// Broadcast selection
+						GetGameManager().BroadcastUpdate(m.player.ID, GameUpdate{
+							Type: "select",
+							Data: map[string]interface{}{
+								"position":   currentPos,
+								"validMoves": m.validMoves,
+							},
+						})
+					}
+				} else {
+					if *m.selected == currentPos {
+						m.selected = nil
+						m.validMoves = make([]Position, 0)
+						// Broadcast deselection
+						GetGameManager().BroadcastUpdate(m.player.ID, GameUpdate{
+							Type: "deselect",
+							Data: nil,
+						})
+					} else if m.game.MakeMove(*m.selected, currentPos) {
+						// Move successful - broadcast to opponent
+						GetGameManager().BroadcastUpdate(m.player.ID, GameUpdate{
+							Type: "move",
+							Data: map[string]interface{}{
+								"from":      *m.selected,
+								"to":        currentPos,
+								"gameState": m.game,
+							},
+						})
+						m.selected = nil
+						m.validMoves = make([]Position, 0)
+						m.isMyTurn = false
+					}
+				}
+			}
+		} else if m.gameState == "waiting" || m.gameState == "opponent_disconnected" {
+			// In waiting mode or after opponent disconnect, allow basic navigation for UI exploration but no moves
+			switch msg.String() {
+			case "up", "k":
+				if m.cursorRow < 7 {
+					m.cursorRow++
+				}
+			case "down", "j":
+				if m.cursorRow > 0 {
+					m.cursorRow--
+				}
+			case "left", "h":
+				if m.cursorCol > 0 {
+					m.cursorCol--
+				}
+			case "right", "l":
+				if m.cursorCol < 7 {
+					m.cursorCol++
 				}
 			}
 		}
+
+	case GameUpdate:
+		return m.handleGameUpdate(msg)
 	}
 	return m, nil
+}
+
+func (m model) broadcastCursorUpdate() {
+	if m.gameSession != nil {
+		GetGameManager().BroadcastUpdate(m.player.ID, GameUpdate{
+			Type: "cursor",
+			Data: map[string]interface{}{
+				"row": m.cursorRow,
+				"col": m.cursorCol,
+			},
+		})
+	}
+}
+
+func (m model) handleGameUpdate(update GameUpdate) (tea.Model, tea.Cmd) {
+	// Don't process updates from self
+	if m.player != nil && update.FromPlayer == m.player.ID {
+		return m, m.listenForUpdates()
+	}
+
+	switch update.Type {
+	case "matched":
+		m.gameState = "playing"
+		m.gameSession = GetGameManager().GetGameSession(m.player.ID)
+		if m.gameSession != nil {
+			m.game = m.gameSession.Game
+			m.opponent = m.gameSession.GetOpponent(m.player.ID)
+			m.isMyTurn = (m.player.Color == White) // White goes first
+		}
+
+	case "move":
+		if data, ok := update.Data.(map[string]interface{}); ok {
+			// Update game state from opponent's move
+			if gameState, ok := data["gameState"].(*Game); ok {
+				m.game = gameState
+				m.isMyTurn = true // It's now our turn
+			}
+		}
+
+	case "cursor":
+		// Opponent cursor movement - we could show this in UI later
+
+	case "select":
+		// Opponent piece selection - we could show this in UI later
+
+	case "deselect":
+		// Opponent deselected - clear any opponent indicators
+
+	case "opponent_disconnected":
+		m.gameState = "opponent_disconnected"
+		m.isMyTurn = false // Disable input
+	}
+
+	// Continue listening for updates
+	return m, m.listenForUpdates()
 }
 
 func (m model) getValidMoves(from Position) []Position {
@@ -103,7 +263,45 @@ func (m model) getValidMoves(from Position) []Position {
 func (m model) View() string {
 	var s strings.Builder
 
-	s.WriteString("Use arrow keys to move cursor, ENTER/SPACE to select/move, ESC to deselect, Q to quit\n\n")
+	if m.gameState == "waiting" {
+		s.WriteString("CheSSH\n")
+		s.WriteString("Waiting for an opponent to connect...\n\n")
+
+		// Show queue position if available
+		if m.player != nil {
+			position := GetGameManager().GetQueuePosition(m.player.ID)
+			if position > 0 {
+				s.WriteString(fmt.Sprintf("Position in queue: %d\n", position))
+			}
+		}
+
+		s.WriteString("You can explore the board while waiting:\n")
+		s.WriteString("Use arrow keys to move cursor, Q to quit\n\n")
+		s.WriteString(m.renderBoardWithInfo())
+		return s.String()
+	}
+
+	if m.gameState == "opponent_disconnected" {
+		s.WriteString("CheSSH\n")
+		s.WriteString("*** OPPONENT DISCONNECTED; YOU WIN ***\n\n")
+		s.WriteString("Your opponent has left the game.\n")
+		s.WriteString("You can continue exploring the board or press Q to quit.\n\n")
+		s.WriteString(m.renderBoardWithInfo())
+		return s.String()
+	}
+
+	s.WriteString("CheSSH\n")
+
+	if m.player != nil && m.opponent != nil {
+		s.WriteString(fmt.Sprintf("You: %s (%s) vs %s (%s)\n",
+			m.player.Name, m.player.Color, m.opponent.Name, m.opponent.Color))
+	}
+
+	if m.isMyTurn {
+		s.WriteString("YOUR TURN - Use arrow keys to move cursor, ENTER/SPACE to select/move, ESC to deselect, Q to quit\n\n")
+	} else {
+		s.WriteString("OPPONENT'S TURN - Please wait for your opponent to move\n\n")
+	}
 
 	status := m.game.GameStatus()
 	if status != "" {
@@ -291,12 +489,71 @@ func main() {
 	var port = flag.Int("port", 0, "run as SSH server")
 	flag.Parse()
 
-	if *port != 0 {
-		runSSHServer(*port)
-	} else {
-		// Run locally
-		if _, err := tea.NewProgram(initialModel()).Run(); err != nil {
-			log.Fatal(err)
+	// Generate host key if it doesn't exist
+	if err := os.MkdirAll(".ssh", 0700); err != nil {
+		log.Fatalln("Failed to create .ssh directory:", err)
+	}
+	hostKeyPath := ".ssh/chess_host_key"
+	if _, err := os.Stat(hostKeyPath); os.IsNotExist(err) {
+		log.Println("Generating SSH host key...")
+		if _, err := keygen.New(hostKeyPath, keygen.WithKeyType(keygen.Ed25519)); err != nil {
+			log.Fatalln("Failed to generate host key:", err)
 		}
+	}
+
+	s, err := wish.NewServer(
+		wish.WithAddress(fmt.Sprintf(":%d", port)),
+		wish.WithHostKeyPath(hostKeyPath),
+		wish.WithMiddleware(
+			bubbletea.Middleware(func(s ssh.Session) (tea.Model, []tea.ProgramOption) {
+				// Create player from SSH session
+				player := &Player{
+					ID:         fmt.Sprintf("player_%d", time.Now().UnixNano()),
+					Session:    s,
+					Name:       s.User(),
+					Connected:  true,
+					UpdateChan: make(chan GameUpdate, 10),
+				}
+
+				// Create model with player
+				m := initialModelWithPlayer(player)
+
+				// Add player to matchmaking queue first
+				GetGameManager().AddPlayer(player)
+
+				// Handle cleanup on session end
+				go func() {
+					<-s.Context().Done()
+					GetGameManager().RemovePlayer(player.ID)
+					if player.UpdateChan != nil {
+						close(player.UpdateChan)
+					}
+				}()
+
+				return m, []tea.ProgramOption{tea.WithAltScreen(), tea.WithInput(s), tea.WithOutput(s)}
+			}),
+			logging.Middleware(),
+		),
+	)
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
+	defer cancel()
+	log.Printf("Starting SSH chess server on :%d", port)
+	go func() {
+		if err = s.ListenAndServe(); err != nil {
+			log.Fatalln(err)
+		}
+	}()
+
+	<-ctx.Done()
+	log.Println("Stopping SSH server")
+
+	tctx, tcancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+	defer tcancel()
+	if err := s.Shutdown(tctx); err != nil {
+		log.Fatalln(err)
 	}
 }

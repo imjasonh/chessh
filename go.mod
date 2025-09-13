@@ -1,4 +1,4 @@
-module chess-tui
+module github.com/imjasonh/chessh
 
 go 1.25.1
 
