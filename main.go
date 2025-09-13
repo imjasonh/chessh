@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"slices"
@@ -18,6 +19,8 @@ import (
 	"github.com/charmbracelet/wish"
 	"github.com/charmbracelet/wish/bubbletea"
 	"github.com/charmbracelet/wish/logging"
+	"github.com/gorilla/websocket"
+	sshproxy "github.com/imjasonh/ssh-proxy"
 )
 
 type model struct {
@@ -486,7 +489,7 @@ func (m model) getPieceName(piece Piece) string {
 }
 
 func main() {
-	var port = flag.Int("port", 0, "run as SSH server")
+	var sshPort = flag.Int("port", 2222, "run as SSH server")
 	flag.Parse()
 
 	// Generate host key if it doesn't exist
@@ -502,7 +505,7 @@ func main() {
 	}
 
 	s, err := wish.NewServer(
-		wish.WithAddress(fmt.Sprintf(":%d", port)),
+		wish.WithAddress(fmt.Sprintf(":%d", *sshPort)),
 		wish.WithHostKeyPath(hostKeyPath),
 		wish.WithMiddleware(
 			bubbletea.Middleware(func(s ssh.Session) (tea.Model, []tea.ProgramOption) {
@@ -541,12 +544,24 @@ func main() {
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
-	log.Printf("Starting SSH chess server on :%d", port)
 	go func() {
+		log.Printf("Starting SSH chess server on :%d", *sshPort)
 		if err = s.ListenAndServe(); err != nil {
 			log.Fatalln(err)
 		}
 	}()
+
+	if httpPort := os.Getenv("PORT"); httpPort != "" {
+		log.Print("Starting WebSocket to SSH proxy on port ", httpPort)
+		http.HandleFunc("/ssh", sshproxy.ProxyWebSocketToSSH(fmt.Sprintf(":%d", *sshPort), websocket.Upgrader{
+			CheckOrigin: func(r *http.Request) bool {
+				return true // Allow connections from any origin for now
+			},
+		}))
+		if err := http.ListenAndServe(fmt.Sprintf(":%s", httpPort), nil); err != nil {
+			log.Fatalln("HTTP server error:", err)
+		}
+	}
 
 	<-ctx.Done()
 	log.Println("Stopping SSH server")
