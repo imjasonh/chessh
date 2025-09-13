@@ -2,6 +2,9 @@
 
 A multiplayer chess game playable via SSH.
 
+> [!IMPORTANT]
+> It's pronounced like _"chess-ess-aych"_, or _"chesh"_ in your best Sean Connery impression.
+
 ## Play the game
 
 ```
