@@ -5,15 +5,9 @@ resource "tls_private_key" "ssh_host_key" {
 
 # Store the private key in Secret Manager
 resource "google_secret_manager_secret" "ssh_host_private_key" {
-  secret_id = "ssh-proxy-host-private-key"
-  
+  secret_id = "${var.name}-ssh-proxy-host-private-key"
   replication {
     auto {}
-  }
-  
-  labels = {
-    service = "ssh-proxy"
-    type    = "ssh-host-key"
   }
 }
 
@@ -24,15 +18,9 @@ resource "google_secret_manager_secret_version" "ssh_host_private_key_version" {
 
 # Store the public key in Secret Manager (for reference/validation)
 resource "google_secret_manager_secret" "ssh_host_public_key" {
-  secret_id = "ssh-proxy-host-public-key"
-  
+  secret_id = "${var.name}-ssh-proxy-host-public-key"
   replication {
     auto {}
-  }
-  
-  labels = {
-    service = "ssh-proxy"
-    type    = "ssh-host-key"
   }
 }
 
@@ -58,11 +46,4 @@ resource "google_secret_manager_secret_iam_member" "ssh_proxy_secret_access" {
   secret_id = google_secret_manager_secret.ssh_host_private_key.secret_id
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${google_service_account.ssh_proxy.email}"
-}
-
-# Output the public key for reference
-output "ssh_public_key" {
-  description = "The SSH public key"
-  value       = tls_private_key.ssh_host_key.public_key_openssh
-  sensitive   = false
 }

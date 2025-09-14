@@ -25,9 +25,9 @@ resource "google_compute_health_check" "ssh_proxy" {
 locals {
   service_annotations = try(kubernetes_service.ssh_proxy.metadata[0].annotations, {})
   neg_status_raw      = try(local.service_annotations["cloud.google.com/neg-status"], null)
-  neg_status          =  local.neg_status_raw != null ? jsondecode(local.neg_status_raw) : null
-  neg_name            =  local.neg_status != null ? local.neg_status.network_endpoint_groups["22"] : null
-  neg_zones           =  local.neg_status != null ? local.neg_status.zones : []
+  neg_status          = local.neg_status_raw != null ? jsondecode(local.neg_status_raw) : null
+  neg_name            = local.neg_status != null ? local.neg_status.network_endpoint_groups["22"] : null
+  neg_zones           = local.neg_status != null ? local.neg_status.zones : []
 }
 
 # Data source to discover the NEGs created by Kubernetes using the dynamic name
@@ -74,6 +74,12 @@ resource "google_compute_backend_service" "ssh_tcp_proxy" {
   }
 
   connection_draining_timeout_sec = 30
+
+  # Enable access logging for TCP proxy
+  log_config {
+    enable      = true
+    sample_rate = 1.0
+  }
 }
 
 # TCP proxy for SSH traffic

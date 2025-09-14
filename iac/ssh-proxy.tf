@@ -56,8 +56,16 @@ resource "kubernetes_deployment" "ssh_proxy" {
     }
   }
 
+  # Ignore GKE Autopilot annotations that get added automatically
+  lifecycle {
+    ignore_changes = [
+      metadata[0].annotations["autopilot.gke.io/resource-adjustment"],
+      metadata[0].annotations["autopilot.gke.io/warden-version"],
+    ]
+  }
+
   spec {
-    replicas = 2 # Multiple replicas for HA
+    replicas = 1
 
     selector {
       match_labels = {
@@ -78,38 +86,60 @@ resource "kubernetes_deployment" "ssh_proxy" {
       spec {
         service_account_name = kubernetes_service_account.ssh_proxy.metadata[0].name
 
+        # GKE Autopilot adds these automatically
+        security_context {
+          run_as_non_root = true
+          seccomp_profile { type = "RuntimeDefault" }
+        }
+
+        toleration {
+          effect   = "NoSchedule"
+          key      = "kubernetes.io/arch"
+          operator = "Equal"
+          value    = "amd64"
+        }
+
         container {
           image = ko_build.ssh_proxy.image_ref
           name  = "ssh-proxy"
+
+          resources {
+            requests = {
+              cpu               = "100m"
+              memory            = "128Mi"
+              ephemeral-storage = "1Gi"
+            }
+            limits = {
+              cpu               = "500m"
+              memory            = "512Mi"
+              ephemeral-storage = "1Gi"
+            }
+          }
+
+          security_context {
+            allow_privilege_escalation = false
+            privileged                 = false
+            read_only_root_filesystem  = true
+            run_as_non_root            = true
+            capabilities { drop = ["NET_RAW"] }
+          }
 
           env {
             name  = "SSH_ADDR"
             value = ":22"
           }
           env {
-            name = "WEBSOCKET_URL"
-            # Use the Cloud Run v2 service URL with WebSocket path
+            name  = "WEBSOCKET_URL"
             value = "${replace(google_cloud_run_v2_service.chessh.uri, "https://", "wss://")}/ssh"
           }
           env {
-            name = "SSH_KEY_SECRET"
+            name  = "SSH_KEY_SECRET"
             value = google_secret_manager_secret_version.ssh_host_private_key_version.id
           }
 
           port {
             container_port = 22
             name           = "ssh"
-          }
-
-          resources {
-            requests = {
-              cpu    = "100m"
-              memory = "128Mi"
-            }
-            limits = {
-              cpu    = "500m"
-              memory = "512Mi"
-            }
           }
 
           liveness_probe {

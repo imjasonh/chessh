@@ -23,6 +23,12 @@ output "host_key_secret_name" {
   value       = google_secret_manager_secret.ssh_host_private_key.secret_id
 }
 
+output "ssh_public_key" {
+  description = "The SSH public key"
+  value       = tls_private_key.ssh_host_key.public_key_openssh
+  sensitive   = false
+}
+
 output "service_account_email" {
   description = "Service account email for chessh"
   value       = google_service_account.chessh.email

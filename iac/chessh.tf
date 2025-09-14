@@ -13,7 +13,7 @@ data "apko_config" "config" {
 }
 
 resource "apko_build" "base" {
-  repo = "${var.region}-docker.pkg.dev/${var.project_id}/chessh/github.com/imjasonh/chessh"
+  repo   = "${var.region}-docker.pkg.dev/${var.project_id}/chessh/github.com/imjasonh/chessh"
   config = data.apko_config.config.config
 }
 
@@ -42,7 +42,7 @@ resource "google_cloud_run_v2_service" "chessh" {
     timeout               = "${60 * 60}s" # 1 hour, effectively maximum session duration
 
     containers {
-      image   = ko_build.chessh.image_ref
+      image = ko_build.chessh.image_ref
 
       # Cloud Run automatically sets PORT=8080
       env {
