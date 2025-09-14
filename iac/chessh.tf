@@ -49,6 +49,10 @@ resource "google_cloud_run_v2_service" "chessh" {
         name  = "LOG_LEVEL"
         value = "info"
       }
+      env {
+        name  = "SSH_HOST_KEY_SECRET"
+        value = google_secret_manager_secret_version.ssh_host_private_key_version.id
+      }
 
       ports {
         container_port = 8080

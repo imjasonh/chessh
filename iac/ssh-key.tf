@@ -40,10 +40,10 @@ output "ssh_public_key_secret_name" {
   value       = google_secret_manager_secret.ssh_host_public_key.id
 }
 
-# Grant SSH proxy service account access to the SSH private key secret
-resource "google_secret_manager_secret_iam_member" "ssh_proxy_secret_access" {
+# Grant chessh service account access to the SSH private key secret
+resource "google_secret_manager_secret_iam_member" "chessh_secret_access" {
   project   = var.project_id
   secret_id = google_secret_manager_secret.ssh_host_private_key.secret_id
   role      = "roles/secretmanager.secretAccessor"
-  member    = "serviceAccount:${google_service_account.ssh_proxy.email}"
+  member    = "serviceAccount:${google_service_account.chessh.email}"
 }

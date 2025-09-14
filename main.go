@@ -13,8 +13,9 @@ import (
 	"syscall"
 	"time"
 
+	secretmanager "cloud.google.com/go/secretmanager/apiv1"
+	"cloud.google.com/go/secretmanager/apiv1/secretmanagerpb"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/keygen"
 	"github.com/charmbracelet/ssh"
 	"github.com/charmbracelet/wish"
 	"github.com/charmbracelet/wish/bubbletea"
@@ -492,21 +493,22 @@ func main() {
 	var sshPort = flag.Int("port", 2222, "run as SSH server")
 	flag.Parse()
 
-	// Generate host key if it doesn't exist
-	if err := os.MkdirAll(".ssh", 0700); err != nil {
-		log.Fatalln("Failed to create .ssh directory:", err)
+	ctx := context.Background()
+	client, err := secretmanager.NewClient(ctx)
+	if err != nil {
+		log.Fatalf("failed to create Secret Manager client: %v", err)
 	}
-	hostKeyPath := ".ssh/chess_host_key"
-	if _, err := os.Stat(hostKeyPath); os.IsNotExist(err) {
-		log.Println("Generating SSH host key...")
-		if _, err := keygen.New(hostKeyPath, keygen.WithKeyType(keygen.Ed25519)); err != nil {
-			log.Fatalln("Failed to generate host key:", err)
-		}
+	defer client.Close()
+	resp, err := client.AccessSecretVersion(ctx, &secretmanagerpb.AccessSecretVersionRequest{
+		Name: os.Getenv("SSH_HOST_KEY_SECRET"),
+	})
+	if err != nil {
+		log.Fatalf("failed to access secret version: %v", err)
 	}
 
 	s, err := wish.NewServer(
 		wish.WithAddress(fmt.Sprintf(":%d", *sshPort)),
-		wish.WithHostKeyPath(hostKeyPath),
+		wish.WithHostKeyPEM(resp.Payload.Data),
 		wish.WithMiddleware(
 			bubbletea.Middleware(func(s ssh.Session) (tea.Model, []tea.ProgramOption) {
 				// Create player from SSH session

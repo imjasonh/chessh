@@ -132,10 +132,6 @@ resource "kubernetes_deployment" "ssh_proxy" {
             name  = "WEBSOCKET_URL"
             value = "${replace(google_cloud_run_v2_service.chessh.uri, "https://", "wss://")}/ssh"
           }
-          env {
-            name  = "SSH_KEY_SECRET"
-            value = google_secret_manager_secret_version.ssh_host_private_key_version.id
-          }
 
           port {
             container_port = 22

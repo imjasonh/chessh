@@ -5,10 +5,12 @@ go 1.25.1
 tool github.com/imjasonh/ssh-proxy
 
 require (
+	cloud.google.com/go/secretmanager v1.15.0
 	github.com/charmbracelet/bubbletea v1.3.9
-	github.com/charmbracelet/keygen v0.5.3
 	github.com/charmbracelet/ssh v0.0.0-20250826160808-ebfa259c7309
 	github.com/charmbracelet/wish v1.4.7
+	github.com/gorilla/websocket v1.5.3
+	github.com/imjasonh/ssh-proxy v0.0.0-20250914024405-4c08c8a3c84d
 )
 
 require (
@@ -16,11 +18,11 @@ require (
 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
 	cloud.google.com/go/compute/metadata v0.8.0 // indirect
 	cloud.google.com/go/iam v1.5.2 // indirect
-	cloud.google.com/go/secretmanager v1.15.0 // indirect
 	github.com/anmitsu/go-shlex v0.0.0-20200514113438-38f4b401e2be // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/chainguard-dev/clog v1.7.0 // indirect
 	github.com/charmbracelet/colorprofile v0.3.2 // indirect
+	github.com/charmbracelet/keygen v0.5.3 // indirect
 	github.com/charmbracelet/lipgloss v1.1.0 // indirect
 	github.com/charmbracelet/log v0.4.2 // indirect
 	github.com/charmbracelet/x/ansi v0.10.1 // indirect
@@ -40,8 +42,6 @@ require (
 	github.com/google/s2a-go v0.1.9 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.6 // indirect
 	github.com/googleapis/gax-go/v2 v2.15.0 // indirect
-	github.com/gorilla/websocket v1.5.3 // indirect
-	github.com/imjasonh/ssh-proxy v0.0.0-20250913172635-b05fd1fe1bf5 // indirect
 	github.com/lucasb-eyer/go-colorful v1.3.0 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mattn/go-localereader v0.0.1 // indirect

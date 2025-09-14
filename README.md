@@ -13,19 +13,6 @@ ssh chessh.imjasonh.dev
 
 You may need to wait for another player to play against, or join from another terminal to play against yourself.
 
-## Usage
-
-```bash
-# Run SSH server locally
-go run ./ -port 2222
-
-# Connect to server
-ssh localhost -p 2222
-
-# (In another terminal) Connect another player session
-ssh localhost -p 2222
-```
-
 Players are automatically matched when they connect to the SSH server.
 
 When an opponent disconnects, you win!
