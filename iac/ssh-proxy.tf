@@ -167,23 +167,15 @@ resource "kubernetes_deployment" "ssh_proxy" {
   ]
 }
 
-# Service for SSH proxy with NEG for Network Load Balancer
+# Service for SSH proxy using LoadBalancer
 resource "kubernetes_service" "ssh_proxy" {
   metadata {
     name      = "${var.name}-ssh"
     namespace = "default"
-    annotations = {
-      # Enable NEG creation for this service
-      "cloud.google.com/neg" = jsonencode({
-        exposed_ports = {
-          "22" = {}
-        }
-      })
-    }
   }
 
   spec {
-    type = "ClusterIP" # Changed from LoadBalancer to ClusterIP for NEG
+    type = "LoadBalancer"
     selector = {
       app = "${var.name}-ssh-proxy"
     }
@@ -195,15 +187,24 @@ resource "kubernetes_service" "ssh_proxy" {
     }
   }
 
-  # Ignore changes to annotations that GCP manages
-  lifecycle {
-    ignore_changes = [
-      metadata[0].annotations["cloud.google.com/neg-status"],
-    ]
-  }
-
   depends_on = [
     google_container_cluster.autopilot,
     time_sleep.wait_for_cluster
   ]
+}
+
+# Wait for LoadBalancer IP allocation
+resource "time_sleep" "wait_for_loadbalancer_ip" {
+  depends_on      = [kubernetes_service.ssh_proxy]
+  create_duration = "60s"
+}
+
+# Data source to get the LoadBalancer IP address once it's available
+data "kubernetes_service" "ssh_proxy" {
+  metadata {
+    name      = kubernetes_service.ssh_proxy.metadata[0].name
+    namespace = kubernetes_service.ssh_proxy.metadata[0].namespace
+  }
+
+  depends_on = [time_sleep.wait_for_loadbalancer_ip]
 }

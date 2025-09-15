@@ -8,9 +8,9 @@ output "dns_zone_used" {
   value       = data.google_dns_managed_zone.existing.name
 }
 
-output "ssh_service_ip" {
+output "external_ip" {
   description = "External IP address for SSH access"
-  value       = google_compute_global_address.chessh.address
+  value       = data.kubernetes_service.ssh_proxy.status[0].load_balancer[0].ingress[0].ip
 }
 
 output "cloud_run_url" {
@@ -49,17 +49,8 @@ output "ssh_proxy_image_ref" {
   value       = ko_build.ssh_proxy.image_ref
 }
 
-output "ssh_endpoint" {
-  description = "SSH endpoint for Git operations"
-  value       = google_compute_global_address.chessh.address
-}
-
 output "websocket_url" {
   description = "WebSocket URL used by SSH proxy (internal)"
   value       = "${replace(google_cloud_run_v2_service.chessh.uri, "https://", "wss://")}/ssh"
 }
 
-output "global_ip_address" {
-  description = "Global IP address for all services"
-  value       = google_compute_global_address.chessh.address
-}
