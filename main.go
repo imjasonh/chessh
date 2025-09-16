@@ -307,9 +307,10 @@ func (m model) View() string {
 	}
 
 	if m.isMyTurn {
-		s.WriteString("YOUR TURN - Use arrow keys to move cursor, ENTER/SPACE to select/move, ESC to deselect, Q to quit\n\n")
+		s.WriteString("YOUR TURN - Use arrow keys to move cursor\n")
+		s.WriteString("SPACE to select, ESC to deselect, Q to quit\n\n")
 	} else {
-		s.WriteString("OPPONENT'S TURN - Please wait for your opponent to move\n\n")
+		s.WriteString("OPPONENT'S TURN - Please wait\n\n\n")
 	}
 
 	status := m.game.GameStatus()
@@ -417,46 +418,6 @@ func (m model) getInfoLines() []string {
 
 	lines = append(lines, "│                     │")
 
-	if m.selected != nil {
-		lines = append(lines, "├─────────────────────┤")
-		selectedPiece := m.game.Board.At(*m.selected)
-		selectedName := m.getPieceName(selectedPiece)
-		lines = append(lines, fmt.Sprintf("│ Selected: %-10s │", selectedName))
-		lines = append(lines, fmt.Sprintf("│ At: %-15s │", m.selected.String()))
-
-		if len(m.validMoves) > 0 {
-			lines = append(lines, "│                     │")
-			lines = append(lines, "│ Valid moves:        │")
-
-			// Show up to 6 valid moves
-			moveCount := len(m.validMoves)
-			if moveCount > 6 {
-				moveCount = 6
-			}
-
-			for i := 0; i < moveCount; i += 2 {
-				var moveLine strings.Builder
-				moveLine.WriteString("│ ")
-				moveLine.WriteString(m.validMoves[i].String())
-
-				if i+1 < moveCount {
-					moveLine.WriteString(fmt.Sprintf("  %s", m.validMoves[i+1].String()))
-				}
-
-				// Pad to fit box width
-				for moveLine.Len() < 20 {
-					moveLine.WriteString(" ")
-				}
-				moveLine.WriteString(" │")
-
-				lines = append(lines, moveLine.String())
-			}
-
-			if len(m.validMoves) > 6 {
-				lines = append(lines, fmt.Sprintf("│ ... and %d more      │", len(m.validMoves)-6))
-			}
-		}
-	}
 	lines = append(lines, "└─────────────────────┘")
 
 	if len(m.game.MoveHistory) > 0 {
