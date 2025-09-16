@@ -8,8 +8,10 @@ A multiplayer chess game playable via SSH.
 ## Play the game
 
 ```
-ssh chessh.imjasonh.dev
+ssh chessh.imjasonh.dev q
 ```
+
+![Screenshot of CheSSH gameplay](screenshot.png)
 
 You may need to wait for another player to play against, or join from another terminal to play against yourself.
 
