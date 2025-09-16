@@ -96,7 +96,7 @@ func NewBoard() Board {
 		{Pawn, White}, {Pawn, White}, {Pawn, White}, {Pawn, White},
 	}
 
-	for col := 0; col < 8; col++ {
+	for col := range 8 {
 		for row := 2; row < 6; row++ {
 			board[row][col] = Piece{Empty, White}
 		}
@@ -435,8 +435,8 @@ func (g *Game) updateGameState(from, to Position, piece Piece) {
 }
 
 func (g *Game) FindKing(color Color) Position {
-	for row := 0; row < 8; row++ {
-		for col := 0; col < 8; col++ {
+	for row := range 8 {
+		for col := range 8 {
 			pos := Position{row, col}
 			piece := g.Board.At(pos)
 			if piece.Type == King && piece.Color == color {
@@ -455,8 +455,8 @@ func (g *Game) IsInCheck(color Color) bool {
 
 	enemyColor := 1 - color
 
-	for row := 0; row < 8; row++ {
-		for col := 0; col < 8; col++ {
+	for row := range 8 {
+		for col := range 8 {
 			pos := Position{row, col}
 			piece := g.Board.At(pos)
 			if piece.Type != Empty && piece.Color == enemyColor {
@@ -500,13 +500,13 @@ func (g *Game) IsCheckmate(color Color) bool {
 		return false
 	}
 
-	for row := 0; row < 8; row++ {
-		for col := 0; col < 8; col++ {
+	for row := range 8 {
+		for col := range 8 {
 			from := Position{row, col}
 			piece := g.Board.At(from)
 			if piece.Type != Empty && piece.Color == color {
-				for toRow := 0; toRow < 8; toRow++ {
-					for toCol := 0; toCol < 8; toCol++ {
+				for toRow := range 8 {
+					for toCol := range 8 {
 						to := Position{toRow, toCol}
 						if g.isValidMoveIgnoringCheck(from, to) {
 							originalPiece := g.Board.At(to)

@@ -331,7 +331,7 @@ func (m model) renderBoardWithInfo() string {
 		if i < len(boardLines) {
 			s.WriteString(boardLines[i])
 		} else {
-			s.WriteString(strings.Repeat(" ", 27)) // Board width padding
+			s.WriteString(strings.Repeat(" ", 26)) // Board width padding (8*3 + 2 for row numbers)
 		}
 
 		s.WriteString("   ")
@@ -349,41 +349,43 @@ func (m model) renderBoardWithInfo() string {
 func (m model) getBoardLines() []string {
 	var lines []string
 
-	lines = append(lines, "   a  b  c  d  e  f  g  h   ")
+	lines = append(lines, "  a  b  c  d  e  f  g  h  ")
 
 	for row := 7; row >= 0; row-- {
 		var line strings.Builder
-		line.WriteString(fmt.Sprintf("%d ", row+1))
+		line.WriteString(fmt.Sprintf("%d", row+1))
 
-		for col := 0; col < 8; col++ {
+		for col := range 8 {
 			pos := Position{row, col}
 			piece := m.game.Board.At(pos)
 
 			cellChar := piece.String()
 			if piece.Type == Empty {
-				if (row+col)%2 == 0 {
-					cellChar = "·"
-				} else {
-					cellChar = " "
-				}
+				cellChar = " "
 			}
 
+			// Determine background color
+			var bgColor string
 			if m.cursorRow == row && m.cursorCol == col {
-				line.WriteString(fmt.Sprintf("[%s]", cellChar))
+				bgColor = "\033[41m" // Red background for cursor
 			} else if m.selected != nil && m.selected.Row == row && m.selected.Col == col {
-				line.WriteString(fmt.Sprintf("<%s>", cellChar))
+				bgColor = "\033[43m" // Yellow background for selected
 			} else if slices.Contains(m.validMoves, pos) {
-				line.WriteString(fmt.Sprintf("*%s*", cellChar))
+				bgColor = "\033[42m" // Green background for valid moves
+			} else if (row+col)%2 == 0 {
+				bgColor = "\033[47m" // White background for light squares
 			} else {
-				line.WriteString(fmt.Sprintf(" %s ", cellChar))
+				bgColor = "\033[40m" // Black background for dark squares
 			}
+
+			line.WriteString(fmt.Sprintf("%s %s \033[0m", bgColor, cellChar))
 		}
 
-		line.WriteString(fmt.Sprintf(" %d", row+1))
+		line.WriteString(fmt.Sprintf("%d", row+1))
 		lines = append(lines, line.String())
 	}
 
-	lines = append(lines, "   a  b  c  d  e  f  g  h   ")
+	lines = append(lines, "  a  b  c  d  e  f  g  h  ")
 
 	return lines
 }

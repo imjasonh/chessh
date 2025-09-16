@@ -94,7 +94,7 @@ resource "google_cloud_run_v2_service" "chessh" {
 
     scaling {
       min_instance_count = 0
-      max_instance_count = 10
+      max_instance_count = 1
     }
   }
 
