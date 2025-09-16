@@ -2,12 +2,17 @@ package main
 
 import (
 	"context"
+	"crypto/ed25519"
+	"crypto/rand"
+	"crypto/x509"
+	"encoding/pem"
 	"flag"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"slices"
 	"strings"
 	"syscall"
@@ -373,7 +378,7 @@ func (m model) getBoardLines() []string {
 			} else if slices.Contains(m.validMoves, pos) {
 				bgColor = "\033[42m" // Green background for valid moves
 			} else if (row+col)%2 == 0 {
-				bgColor = "\033[47m" // White background for light squares
+				bgColor = "\033[100m" // Light grey background for light squares
 			} else {
 				bgColor = "\033[40m" // Black background for dark squares
 			}
@@ -491,26 +496,90 @@ func (m model) getPieceName(piece Piece) string {
 	return fmt.Sprintf("%s %s", color, pieceType)
 }
 
+// generateOrLoadHostKey generates a new ED25519 host key or loads existing one
+func generateOrLoadHostKey(keyPath string) ([]byte, error) {
+	// Try to read existing key first
+	if keyData, err := os.ReadFile(keyPath); err == nil {
+		return keyData, nil
+	}
+
+	// Generate new key
+	_, privateKey, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate ED25519 key: %w", err)
+	}
+
+	// Convert to PKCS#8 format
+	pkcs8Key, err := x509.MarshalPKCS8PrivateKey(privateKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal private key: %w", err)
+	}
+
+	// Encode as PEM
+	keyPEM := pem.EncodeToMemory(&pem.Block{
+		Type:  "PRIVATE KEY",
+		Bytes: pkcs8Key,
+	})
+
+	// Create directory if it doesn't exist
+	if err := os.MkdirAll(filepath.Dir(keyPath), 0700); err != nil {
+		return nil, fmt.Errorf("failed to create key directory: %w", err)
+	}
+
+	// Save key to file
+	if err := os.WriteFile(keyPath, keyPEM, 0600); err != nil {
+		return nil, fmt.Errorf("failed to save host key: %w", err)
+	}
+
+	log.Printf("Generated new SSH host key: %s", keyPath)
+	return keyPEM, nil
+}
+
 func main() {
-	var sshPort = flag.Int("port", 2222, "run as SSH server")
+	var (
+		sshPort = flag.Int("port", 2222, "SSH server port")
+		local   = flag.Bool("local", false, "run in local mode (generates/uses local host key instead of Secret Manager)")
+	)
 	flag.Parse()
 
-	ctx := context.Background()
-	client, err := secretmanager.NewClient(ctx)
-	if err != nil {
-		log.Fatalf("failed to create Secret Manager client: %v", err)
-	}
-	defer client.Close()
-	resp, err := client.AccessSecretVersion(ctx, &secretmanagerpb.AccessSecretVersionRequest{
-		Name: os.Getenv("SSH_HOST_KEY_SECRET"),
-	})
-	if err != nil {
-		log.Fatalf("failed to access secret version: %v", err)
+	var hostKeyData []byte
+	var err error
+
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
+	defer cancel()
+
+	if *local {
+		// Local mode: generate or load local host key
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			log.Fatalf("failed to get user home directory: %v", err)
+		}
+		keyPath := filepath.Join(homeDir, ".chessh", "host_key")
+		hostKeyData, err = generateOrLoadHostKey(keyPath)
+		if err != nil {
+			log.Fatalf("failed to generate/load host key: %v", err)
+		}
+		log.Println("Running in local mode")
+	} else {
+		// Cloud mode: use Secret Manager
+		client, err := secretmanager.NewClient(ctx)
+		if err != nil {
+			log.Fatalf("failed to create Secret Manager client: %v", err)
+		}
+		defer client.Close()
+		resp, err := client.AccessSecretVersion(ctx, &secretmanagerpb.AccessSecretVersionRequest{
+			Name: os.Getenv("SSH_HOST_KEY_SECRET"),
+		})
+		if err != nil {
+			log.Fatalf("failed to access secret version: %v", err)
+		}
+		hostKeyData = resp.Payload.Data
+		log.Println("Running in cloud mode with Secret Manager")
 	}
 
 	s, err := wish.NewServer(
 		wish.WithAddress(fmt.Sprintf(":%d", *sshPort)),
-		wish.WithHostKeyPEM(resp.Payload.Data),
+		wish.WithHostKeyPEM(hostKeyData),
 		wish.WithMiddleware(
 			bubbletea.Middleware(func(s ssh.Session) (tea.Model, []tea.ProgramOption) {
 				// Create player from SSH session
@@ -545,9 +614,6 @@ func main() {
 	if err != nil {
 		log.Fatalln(err)
 	}
-
-	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
-	defer cancel()
 	go func() {
 		log.Printf("Starting SSH chess server on :%d", *sshPort)
 		if err = s.ListenAndServe(); err != nil {
