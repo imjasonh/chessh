@@ -8,7 +8,7 @@ A multiplayer chess game playable via SSH.
 ## Play the game
 
 ```
-ssh chessh.imjasonh.dev q
+ssh chessh.imjasonh.dev
 ```
 
 ![Screenshot of CheSSH gameplay](screenshot.png)
