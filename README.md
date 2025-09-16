@@ -19,6 +19,18 @@ Players are automatically matched when they connect to the SSH server.
 
 When an opponent disconnects, you win!
 
+## Running locally
+
+```bash
+go run ./ --local
+```
+
+then
+
+```bash
+ssh localhost -p 2222
+```
+
 ## Deploying
 
 ```bash
