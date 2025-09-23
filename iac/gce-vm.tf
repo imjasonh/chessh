@@ -63,7 +63,7 @@ resource "google_compute_firewall" "chessh_health" {
 
 # Instance template for ChessH
 resource "google_compute_instance_template" "chessh" {
-  name        = "${var.name}-template-v2"
+  name_prefix = "${var.name}-template-"
   description = "Template for ChessH game server instances"
 
   machine_type = "e2-micro"
@@ -123,6 +123,10 @@ resource "google_compute_instance_template" "chessh" {
     google_project_service.container,
     ko_build.chessh
   ]
+  
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 # Instance group manager
@@ -153,6 +157,10 @@ resource "google_compute_region_instance_group_manager" "chessh" {
   }
 
   depends_on = [google_compute_instance_template.chessh]
+  
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 # Health check for the instances

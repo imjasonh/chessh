@@ -76,8 +76,9 @@ terraform apply
 
 ### Container Updates
 - Code changes automatically trigger new container builds via `ko_build.chessh`
-- Terraform detects new image references and performs rolling updates
+- Instance templates use `name_prefix` with `create_before_destroy` lifecycle
 - Use `terraform plan` and `terraform apply` for deployments
+- Terraform creates new instance template, updates instance group, then removes old template
 - GCE instance groups handle rolling updates automatically with health checks
 
 ### Health Checks

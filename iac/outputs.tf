@@ -1,13 +1,3 @@
-output "chessh_domain" {
-  description = "Full domain for chessh service (manual DNS setup required)"
-  value       = "chessh.${var.domain}"
-}
-
-output "dns_zone_used" {
-  description = "DNS zone being used"
-  value       = data.google_dns_managed_zone.existing.name
-}
-
 output "external_ip" {
   description = "External IP address for SSH access"
   value       = google_compute_global_address.chessh_lb.address

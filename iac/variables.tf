@@ -20,13 +20,3 @@ variable "deletion_protection" {
   type        = bool
   default     = false
 }
-
-variable "domain" {
-  description = "Domain name to use for DNS records"
-  type        = string
-}
-
-variable "dns_zone" {
-  description = "DNS zone name to use for managing DNS records"
-  type        = string
-}
