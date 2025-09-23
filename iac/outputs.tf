@@ -1,5 +1,5 @@
 output "chessh_domain" {
-  description = "Full domain for chessh service"
+  description = "Full domain for chessh service (manual DNS setup required)"
   value       = "chessh.${var.domain}"
 }
 
@@ -10,12 +10,7 @@ output "dns_zone_used" {
 
 output "external_ip" {
   description = "External IP address for SSH access"
-  value       = data.kubernetes_service.ssh_proxy.status[0].load_balancer[0].ingress[0].ip
-}
-
-output "cloud_run_url" {
-  description = "URL of the Cloud Run service"
-  value       = google_cloud_run_v2_service.chessh.uri
+  value       = google_compute_global_address.chessh_lb.address
 }
 
 output "host_key_secret_name" {
@@ -29,28 +24,13 @@ output "ssh_public_key" {
   sensitive   = false
 }
 
-output "service_account_email" {
-  description = "Service account email for chessh"
-  value       = google_service_account.chessh.email
-}
-
-output "ssh_proxy_service_account_email" {
-  description = "Service account email for SSH proxy"
-  value       = google_service_account.chessh.email
+output "vm_service_account_email" {
+  description = "Service account email for chessh VM instances"
+  value       = google_service_account.chessh_vm.email
 }
 
 output "chessh_image_ref" {
   description = "Container image reference for chessh"
   value       = ko_build.chessh.image_ref
-}
-
-output "ssh_proxy_image_ref" {
-  description = "Container image reference for SSH proxy"
-  value       = ko_build.ssh_proxy.image_ref
-}
-
-output "websocket_url" {
-  description = "WebSocket URL used by SSH proxy (internal)"
-  value       = "${replace(google_cloud_run_v2_service.chessh.uri, "https://", "wss://")}/ssh"
 }
 

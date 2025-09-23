@@ -25,8 +25,6 @@ import (
 	"github.com/charmbracelet/wish"
 	"github.com/charmbracelet/wish/bubbletea"
 	"github.com/charmbracelet/wish/logging"
-	"github.com/gorilla/websocket"
-	sshproxy "github.com/imjasonh/ssh-proxy"
 )
 
 type model struct {
@@ -583,12 +581,11 @@ func main() {
 	}()
 
 	if httpPort := os.Getenv("PORT"); httpPort != "" {
-		log.Print("Starting WebSocket to SSH proxy on port ", httpPort)
-		http.HandleFunc("/ssh", sshproxy.ProxyWebSocketToSSH(fmt.Sprintf(":%d", *sshPort), websocket.Upgrader{
-			CheckOrigin: func(r *http.Request) bool {
-				return true // Allow connections from any origin for now
-			},
-		}))
+		log.Print("Starting HTTP health check server on port ", httpPort)
+		http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte("OK"))
+		})
 		if err := http.ListenAndServe(fmt.Sprintf(":%s", httpPort), nil); err != nil {
 			log.Fatalln("HTTP server error:", err)
 		}

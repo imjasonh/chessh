@@ -8,12 +8,12 @@ A multiplayer chess game playable via SSH.
 ## Play the game
 
 ```
-ssh chessh.imjasonh.dev
+ssh chessh.app.imjasonh.com
 ```
 
 ![Screenshot of CheSSH gameplay](screenshot.png)
 
-You may need to wait for another player to play against, or join from another terminal to play against yourself.
+You may need to wait for another player to play against, or join from another terminal if you want to play with yourself.
 
 Players are automatically matched when they connect to the SSH server.
 
@@ -39,4 +39,10 @@ terraform init
 terraform apply
 ```
 
-This will create a GKE Autopilot cluster, Cloud Run service, host key secret, GCLB, routing rules, etc., to be able to host the server on the internet.
+This will create:
+- A container image containing the app's code
+- GCE VM instances running the app container
+- TCP Load Balancer for direct SSH access on port 22
+- Health checks and auto-healing for high availability
+- DNS records pointing to the load balancer
+- SSH host key management via Secret Manager
