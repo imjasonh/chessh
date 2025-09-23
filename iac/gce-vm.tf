@@ -141,6 +141,16 @@ resource "google_compute_region_instance_group_manager" "chessh" {
     instance_template = google_compute_instance_template.chessh.id
   }
 
+  # Rolling update policy for graceful deployments
+  update_policy {
+    type                         = "PROACTIVE"
+    instance_redistribution_type = "PROACTIVE"
+    minimal_action               = "REPLACE"
+    most_disruptive_allowed_action = "REPLACE"
+    max_surge_fixed             = 3  # Must be >= number of zones in region
+    max_unavailable_fixed       = 0
+  }
+
   named_port {
     name = "ssh"
     port = 2222

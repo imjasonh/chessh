@@ -8,7 +8,7 @@ resource "google_compute_backend_service" "chessh" {
   name        = "${var.name}-backend"
   protocol    = "TCP"
   port_name   = "ssh"
-  timeout_sec = 30
+  timeout_sec = 5 * 60 # 5 minutes timeout for ~long-lived SSH sessions
 
   health_checks = [google_compute_health_check.chessh.id]
 
@@ -17,6 +17,9 @@ resource "google_compute_backend_service" "chessh" {
     balancing_mode               = "CONNECTION"
     max_connections_per_instance = 1000
   }
+
+  # Session affinity to keep existing connections on same backend
+  session_affinity = "CLIENT_IP"
 
   depends_on = [google_compute_region_instance_group_manager.chessh]
 }
